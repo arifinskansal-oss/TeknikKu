@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TeknikKu</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #06180E; color: #E7F5E9; font-family: sans-serif; padding: 14px 14px 28px; }
+  h1 { margin: 0 0 2px; font-size: 26px; }
+  .sub { color: #9CCC9C; font-size: 13px; margin-bottom: 14px; }
+  .baris { display: flex; gap: 8px; margin-bottom: 10px; }
+  input[type=text] { flex: 1; background: #0A1F13; border: 1px solid #1B4332; color: #E7F5E9; border-radius: 10px; padding: 10px 12px; font-size: 16px; }
+  button { background: #1B4332; border: 1px solid #2D6A4F; color: #E7F5E9; border-radius: 10px; padding: 10px 14px; font-size: 15px; }
+  button.aktif { background: #2D6A4F; font-weight: bold; }
+  .chip { display: inline-block; background: #0A1F13; border: 1px solid #1B4332; border-radius: 20px; padding: 7px 12px; margin: 0 6px 8px 0; font-size: 14px; }
+  .chip b { cursor: pointer; }
+  .chip .hapus { color: #FFAB91; margin-left: 8px; cursor: pointer; }
+  .kartu { background: #0A1F13; border: 1px solid #1B4332; border-radius: 12px; padding: 12px; margin-bottom: 12px; }
+  .simbol { font-size: 26px; font-weight: 900; }
+  .harga { font-size: 22px; font-weight: bold; margin-top: 4px; }
+  .naik { color: #4ADE80; } .turun { color: #F87171; } .datar { color: #B9D8BB; }
+  canvas { display: block; width: 100%; background: #0A1F13; border: 1px solid #1B4332; border-radius: 12px; }
+  .indikator { display: flex; align-items: center; gap: 8px; padding: 7px 0; border-bottom: 1px solid #14301F; font-size: 15px; }
+  .indikator:last-child { border-bottom: none; }
+  .indikator input { width: 18px; height: 18px; }
+  .indikator .nm { flex: 1; }
+  .indikator .nl { color: #FFE082; font-weight: bold; }
+  .indikator .zona { color: #B9D8BB; font-size: 13px; }
+  .ringkas { font-size: 15px; line-height: 1.5; }
+  .sinyal-besar { font-size: 34px; font-weight: 900; letter-spacing: 1px; }
+  .sig-beli { color: #4ADE80; } .sig-jual { color: #F87171; } .sig-tahan { color: #FFE082; }
+  .aturan { color: #9CCC9C; font-size: 12px; line-height: 1.5; margin-top: 8px; }
+  .status { color: #FFAB91; font-size: 14px; margin-bottom: 10px; }
+  .kaki { color: #9CCC9C; font-size: 12px; line-height: 1.5; margin-top: 16px; }
+  .kecil { color: #9CCC9C; font-size: 13px; background: none; border: none; padding: 0; text-decoration: underline; }
+</style>
+<script src="indikator.js"></script>
+</head>
+<body>
+<h1>📈 TeknikKu</h1>
+<div class="sub">Analisis teknikal saham &amp; ETF — indikator standar publik</div>
+
+<div class="baris">
+  <input type="text" id="inputSimbol" placeholder="Ketik ticker, mis. QQQ atau BBCA.JK" autocapitalize="characters">
+  <button id="btnCari">Tampilkan</button>
+</div>
+<div class="baris">
+  <button id="btnSegar">↻ Segarkan</button>
+  <button id="btnSimpan">＋ Simpan ke daftar</button>
+</div>
+<div id="daftarChip"></div>
+
+<div class="baris" id="rentangBtns">
+  <button data-r="3B">3 bulan</button>
+  <button data-r="6B" class="aktif">6 bulan</button>
+  <button data-r="1T">1 tahun</button>
+</div>
+
+<div class="kartu">
+  <div class="simbol" id="judulSimbol">—</div>
+  <div class="harga" id="hargaSimbol">—</div>
+  <div id="infoPeriode" class="sub" style="margin:4px 0 0;">—</div>
+</div>
+
+<div class="kartu">
+  <div style="font-weight:900; margin-bottom:6px;">Pergerakan 20 hari</div>
+  <div id="gerak20" class="ringkas">—</div>
+</div>
+
+<canvas id="grafik" height="190"></canvas>
+<div id="infoGrafik" class="sub" style="margin:6px 0 14px;">—</div>
+
+<div class="kartu">
+  <div style="font-weight:900; margin-bottom:6px;">Sinyal utama</div>
+  <div id="sinyalUtama" class="sinyal-besar">—</div>
+  <div id="sinyalSuara" class="ringkas">—</div>
+  <div id="sinyalRincian" class="ringkas">—</div>
+  <div class="aturan">Aturan: tiap indikator memberi 1 suara beli atau jual. Beli: RSI di bawah 30, Stochastic %K di bawah 20, Stochastic RSI di bawah 20, CCI di bawah −100, William %R di bawah −80, harga di bawah pita bawah Bollinger, histogram MACD di atas 0, harga di atas MA20. Jual: kebalikannya (RSI di atas 70, %K di atas 80, StochRSI di atas 80, CCI di atas 100, %R di atas −20, harga di atas pita atas, histogram MACD di bawah 0, harga di bawah MA20). BELI bila suara beli ≥ suara jual + 2; JUAL bila sebaliknya; selebihnya TAHAN. Indikator tanpa data cukup tidak memberi suara.</div>
+</div>
+
+<div class="kartu">
+  <div style="font-weight:900; margin-bottom:6px;">Indikator (centang untuk menampilkan)</div>
+  <div id="daftarIndikator"></div>
+</div>
+
+<div class="kartu">
+  <div style="font-weight:900; margin-bottom:6px;">Nilai terakhir yang aktif</div>
+  <div id="nilaiIndikator">—</div>
+</div>
+
+<div class="kartu">
+  <div style="font-weight:900; margin-bottom:6px;">Ringkasan fakta</div>
+  <div id="ringkasan" class="ringkas">—</div>
+</div>
+
+<div id="status" class="status"></div>
+
+<div class="kaki">
+  Bukan saran investasi. Data harga: Yahoo Finance. Indikator dihitung dengan
+  rumus standar publik dari deret harga yang sama dengan grafik — tanpa data
+  tambahan dan tanpa rumus berbayar. <button class="kecil" id="btnResetDaftar">Kembalikan daftar bawaan</button>
+</div>
+
+<script>
+/* TeknikKu v2 — UI + wiring. Rumus indikator ada di indikator.js. */
+var DAFTAR_BAWAAN = ["QQQ", "SCHD", "SPUS", "HLAL", "SPHD", "VOO"];
+var RENTANG = { "3B": "3mo", "6B": "6mo", "1T": "1y" };
+var DEF_INDIKATOR = [
+  { id: "ma5",   nama: "Moving Average 5",   aktif: false },
+  { id: "ma20",  nama: "Moving Average 20",  aktif: true },
+  { id: "bb",    nama: "Bollinger Band (20, 2)", aktif: true },
+  { id: "bbw",   nama: "Bollinger Bandwidth", aktif: false },
+  { id: "stoch", nama: "Stochastic (14, 3)", aktif: false },
+  { id: "stochrsi", nama: "Stochastic RSI (14, 14)", aktif: false },
+  { id: "rsi",   nama: "RSI (14)",           aktif: true },
+  { id: "cci",   nama: "CCI (20)",           aktif: false },
+  { id: "willr", nama: "William %R (14)",    aktif: false },
+  { id: "macd",  nama: "MACD (12, 26, 9)",   aktif: false }
+];
+var daftar = muatDaftar();
+var indikator = muatIndikator();
+var rentang = localStorage.getItem("teknikku_rentang") || "6B";
+var simbol = localStorage.getItem("teknikku_simbol") || "QQQ";
+var ysym = simbol, mataUang = "USD", hargaKini = null;
+var seri = null, statusGrafik = "muat", idGrafikAktif = 0, jagaGrafik = null;
+
+function muatDaftar() {
+  try {
+    var d = JSON.parse(localStorage.getItem("teknikku_daftar") || "null");
+    if (d && d.length) return d;
+  } catch (e) { /* pakai bawaan */ }
+  return DAFTAR_BAWAAN.slice();
+}
+function simpanDaftar() { localStorage.setItem("teknikku_daftar", JSON.stringify(daftar)); }
+function muatIndikator() {
+  try {
+    var s = JSON.parse(localStorage.getItem("teknikku_indikator") || "null");
+    if (s) {
+      for (var i = 0; i < DEF_INDIKATOR.length; i++) {
+        if (s[DEF_INDIKATOR[i].id] !== undefined) DEF_INDIKATOR[i].aktif = !!s[DEF_INDIKATOR[i].id];
+      }
+    }
+  } catch (e) { /* pakai bawaan */ }
+  return DEF_INDIKATOR;
+}
+function simpanIndikator() {
+  var s = {};
+  for (var i = 0; i < indikator.length; i++) s[indikator[i].id] = indikator[i].aktif;
+  localStorage.setItem("teknikku_indikator", JSON.stringify(s));
+}
+function esc(s) {
+  return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+function fmtDes(x, des) {
+  if (x === null || x === undefined || !isFinite(x)) return "—";
+  return x.toFixed(des).replace(".", ",");
+}
+function fmtUang(cur, n) {
+  if (n === null || n === undefined || !isFinite(n)) return "—";
+  if (cur === "IDR") {
+    var r = Math.round(n).toString(), out = "";
+    while (r.length > 3) { out = "." + r.slice(-3) + out; r = r.slice(0, -3); }
+    return "Rp" + r + out;
+  }
+  return "$" + fmtDes(n, 2);
+}
+function normalSimbol(t) { return t.replace(/\s+/g, "").toUpperCase(); }
+
+/* ---------- render daftar & indikator ---------- */
+function renderChip() {
+  var html = "";
+  for (var i = 0; i < daftar.length; i++) {
+    var s = daftar[i];
+    html += '<span class="chip"><b data-sym="' + esc(s) + '">' + esc(s) + "</b>" +
+      (DAFTAR_BAWAAN.indexOf(s) < 0 ? ' <span class="hapus" data-hapus="' + esc(s) + '">×</span>' : "") + "</span>";
+  }
+  document.getElementById("daftarChip").innerHTML = html;
+  var bs = document.querySelectorAll("#daftarChip [data-sym]");
+  for (var j = 0; j < bs.length; j++) bs[j].onclick = function () { pilihSimbol(this.getAttribute("data-sym")); };
+  var hs = document.querySelectorAll("#daftarChip [data-hapus]");
+  for (var k = 0; k < hs.length; k++) hs[k].onclick = function (ev) {
+    ev.stopPropagation();
+    var h = this.getAttribute("data-hapus");
+    daftar = daftar.filter(function (x) { return x !== h; });
+    simpanDaftar(); renderChip();
+  };
+}
+function renderIndikator() {
+  var html = "";
+  for (var i = 0; i < indikator.length; i++) {
+    html += '<label class="indikator"><input type="checkbox" data-ind="' + indikator[i].id + '"' +
+      (indikator[i].aktif ? " checked" : "") + '><span class="nm">' + esc(indikator[i].nama) + "</span></label>";
+  }
+  document.getElementById("daftarIndikator").innerHTML = html;
+  var cs = document.querySelectorAll("#daftarIndikator [data-ind]");
+  for (var j = 0; j < cs.length; j++) cs[j].onchange = function () {
+    var id = this.getAttribute("data-ind");
+    for (var k = 0; k < indikator.length; k++) if (indikator[k].id === id) indikator[k].aktif = this.checked;
+    simpanIndikator();
+    hitungDanGambar();
+  };
+}
+function renderRentang() {
+  var btns = document.querySelectorAll("#rentangBtns button");
+  for (var i = 0; i < btns.length; i++) {
+    btns[i].classList.toggle("aktif", btns[i].getAttribute("data-r") === rentang);
+  }
+}
+
+/* ---------- hitung indikator & gambar ---------- */
+function deretIndikator() {
+  /* Deret overlay per titik (MA & Bollinger) dihitung dari irisan awal —
+     n ≤ ±250 titik sehingga biayanya diabaikan. */
+  var cls = seri.closes, out = { ma5: [], ma20: [], bbUp: [], bbLo: [] };
+  for (var i = 0; i < cls.length; i++) {
+    var iris = cls.slice(0, i + 1);
+    out.ma5.push(TeknikIndikator.sma(iris, 5));
+    out.ma20.push(TeknikIndikator.sma(iris, 20));
+    var bb = TeknikIndikator.bollinger(iris, 20, 2);
+    out.bbUp.push(bb ? bb.upper : null);
+    out.bbLo.push(bb ? bb.lower : null);
+  }
+  return out;
+}
+function nilaiAktif() {
+  var cls = seri.closes, hi = seri.highs, lo = seri.lows, v = {};
+  v.ma5 = TeknikIndikator.sma(cls, 5);
+  v.ma20 = TeknikIndikator.sma(cls, 20);
+  var bb = TeknikIndikator.bollinger(cls, 20, 2);
+  v.bb = bb; v.bbw = bb ? bb.bandwidth : null;
+  var st = TeknikIndikator.stochastic(hi, lo, cls, 14, 3);
+  v.stoch = st; v.stochrsi = TeknikIndikator.stochRsi(cls, 14, 14);
+  v.rsi = TeknikIndikator.rsi(cls, 14);
+  v.cci = TeknikIndikator.cci(hi, lo, cls, 20);
+  v.willr = TeknikIndikator.williamsR(hi, lo, cls, 14);
+  v.macd = TeknikIndikator.macd(cls, 12, 26, 9);
+  return v;
+}
+function zona(id, v, hargaAkhir) {
+  if (v === null || v === undefined) return "data belum cukup";
+  if (id === "ma5" || id === "ma20") return hargaAkhir >= v ? "harga di atas garis" : "harga di bawah garis";
+  if (id === "bb") {
+    if (hargaAkhir > v.upper) return "harga di atas pita atas";
+    if (hargaAkhir < v.lower) return "harga di bawah pita bawah";
+    return "harga di dalam pita";
+  }
+  if (id === "bbw") return "lebar pita relatif " + fmtDes(v, 2) + "%";
+  if (id === "stoch") {
+    if (v.k === null) return "data belum cukup";
+    return v.k >= 80 ? "%K di atas 80" : (v.k <= 20 ? "%K di bawah 20" : "%K di antara 20–80");
+  }
+  if (id === "stochrsi") return v >= 80 ? "di atas 80" : (v <= 20 ? "di bawah 20" : "di antara 20–80");
+  if (id === "rsi") return v >= 70 ? "di atas 70" : (v <= 30 ? "di bawah 30" : "di antara 30–70");
+  if (id === "cci") return v >= 100 ? "di atas 100" : (v <= -100 ? "di bawah -100" : "di antara -100–100");
+  if (id === "willr") return v >= -20 ? "di atas -20" : (v <= -80 ? "di bawah -80" : "di antara -80–-20");
+  if (id === "macd") return v.macd >= v.signal ? "garis di atas sinyal" : "garis di bawah sinyal";
+  return "";
+}
+function teksNilai(id, v) {
+  if (v === null || v === undefined) return "—";
+  if (id === "bb") return fmtUang(mataUang, v.middle) + " (atas " + fmtUang(mataUang, v.upper) + ", bawah " + fmtUang(mataUang, v.lower) + ")";
+  if (id === "stoch") return v.k === null ? "—" : "%K " + fmtDes(v.k, 2) + ", %D " + fmtDes(v.d, 2);
+  if (id === "macd") return "garis " + fmtDes(v.macd, 2) + ", sinyal " + fmtDes(v.signal, 2) + ", histogram " + fmtDes(v.histogram, 2);
+  if (id === "ma5" || id === "ma20") return fmtUang(mataUang, v);
+  return fmtDes(v, 2);
+}
+function resetPanel() {
+  var elS = document.getElementById("sinyalUtama");
+  elS.textContent = "—";
+  elS.className = "sinyal-besar";
+  document.getElementById("sinyalSuara").textContent = "—";
+  document.getElementById("sinyalRincian").textContent = "—";
+  document.getElementById("gerak20").textContent = "—";
+}
+function hitungDanGambar() {
+  if (!seri || seri.closes.length < 2) { gambarGrafik(); resetPanel(); return; }
+  var cls = seri.closes, akhir = cls[cls.length - 1];
+  var v = nilaiAktif(), ov = deretIndikator();
+  /* sinyal utama + gerak 20 hari (selalu tampil, tidak tergantung toggle) */
+  var sg = TeknikIndikator.sinyal(cls, seri.highs, seri.lows);
+  var elS = document.getElementById("sinyalUtama");
+  elS.textContent = sg.hasil;
+  elS.className = "sinyal-besar " + (sg.hasil === "BELI" ? "sig-beli" : (sg.hasil === "JUAL" ? "sig-jual" : "sig-tahan"));
+  document.getElementById("sinyalSuara").textContent = "Suara beli: " + sg.beli + " • Suara jual: " + sg.jual;
+  document.getElementById("sinyalRincian").textContent =
+    sg.rincian.map(function (r) { return r.nama + ": " + r.suara; }).join(" • ");
+  var g20 = TeknikIndikator.gerak20(cls);
+  document.getElementById("gerak20").innerHTML = g20 ?
+    fmtUang(mataUang, g20.dulu) + " → " + fmtUang(mataUang, g20.akhir) +
+    ' (<span class="' + (g20.pct > 0.0001 ? "naik" : (g20.pct < -0.0001 ? "turun" : "datar")) + '">' +
+    (g20.pct >= 0 ? "+" : "") + fmtDes(g20.pct, 2) + "%</span>)" :
+    "data kurang (perlu minimal 21 titik harga)";
+  /* panel nilai */
+  var html = "", ringkas = [];
+  for (var i = 0; i < indikator.length; i++) {
+    if (!indikator[i].aktif) continue;
+    var id = indikator[i].id, val = v[id];
+    var z = zona(id, val, akhir);
+    if (id === "stoch" && val && val.k === null) z = "data belum cukup";
+    html += '<div class="indikator"><span class="nm">' + esc(indikator[i].nama) + "</span>" +
+      '<span class="nl">' + esc(teksNilai(id, val)) + "</span>" +
+      '<span class="zona">' + esc(z) + "</span></div>";
+    ringkas.push(indikator[i].nama + ": " + teksNilai(id, val) + " (" + z + ")");
+  }
+  document.getElementById("nilaiIndikator").innerHTML = html || "—";
+  document.getElementById("ringkasan").textContent =
+    ringkas.length ? ringkas.join(" • ") : "Tidak ada indikator aktif — centang minimal satu indikator.";
+  /* info periode */
+  var pct = cls[0] ? ((akhir / cls[0]) - 1) * 100 : 0;
+  var kelas = pct > 0.0001 ? "naik" : (pct < -0.0001 ? "turun" : "datar");
+  document.getElementById("infoPeriode").innerHTML =
+    "Periode " + esc(rentang) + ": " + fmtUang(mataUang, cls[0]) + " → " + fmtUang(mataUang, akhir) +
+    ' (<span class="' + kelas + '">' + fmtDes(pct, 2) + "%</span>)";
+  gambarGrafik(ov);
+}
+function gambarGrafik(ov) {
+  var cv = document.getElementById("grafik");
+  if (!cv) return;
+  var lebarCss = cv.clientWidth || (window.innerWidth - 28);
+  var tinggiCss = 190, dpr = window.devicePixelRatio || 1;
+  cv.width = Math.round(lebarCss * dpr);
+  cv.height = Math.round(tinggiCss * dpr);
+  cv.style.height = tinggiCss + "px";
+  var ctx = cv.getContext("2d");
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, lebarCss, tinggiCss);
+  ctx.fillStyle = "#0A1F13";
+  ctx.fillRect(0, 0, lebarCss, tinggiCss);
+  ctx.font = "15px sans-serif";
+  if (statusGrafik === "muat") { ctx.fillStyle = "#9CCC9C"; ctx.fillText("Memuat grafik…", 14, tinggiCss / 2); return; }
+  if (statusGrafik !== "ok" || !seri || seri.closes.length < 2) {
+    ctx.fillStyle = "#FFAB91"; ctx.fillText("Grafik tidak tersedia.", 14, tinggiCss / 2); return;
+  }
+  var cls = seri.closes;
+  var semua = cls.slice();
+  if (ov) {
+    var akt = {};
+    for (var a = 0; a < indikator.length; a++) if (indikator[a].aktif) akt[indikator[a].id] = true;
+    var tambah = function (arr) { for (var t = 0; t < arr.length; t++) if (arr[t] !== null && isFinite(arr[t])) semua.push(arr[t]); };
+    if (akt.ma5) tambah(ov.ma5);
+    if (akt.ma20) tambah(ov.ma20);
+    if (akt.bb) { tambah(ov.bbUp); tambah(ov.bbLo); }
+  }
+  var min = Math.min.apply(null, semua), max = Math.max.apply(null, semua);
+  if (max - min < 1e-9) max = min + 1;
+  var naikPeriode = cls[cls.length - 1] >= cls[0];
+  var warna = naikPeriode ? "#4ADE80" : "#F87171";
+  var padA = 20, padB = 8, padK = 8;
+  var W = lebarCss - padK * 2, H = tinggiCss - padA - padB;
+  function X(i) { return padK + (i / (cls.length - 1)) * W; }
+  function Y(v) { return padA + (1 - (v - min) / (max - min)) * H; }
+  function garis(arr, warnaGaris, putus) {
+    ctx.beginPath();
+    var mulai = false;
+    for (var i = 0; i < arr.length; i++) {
+      if (arr[i] === null || !isFinite(arr[i])) { mulai = false; continue; }
+      if (!mulai) { ctx.moveTo(X(i), Y(arr[i])); mulai = true; }
+      else ctx.lineTo(X(i), Y(arr[i]));
+    }
+    ctx.strokeStyle = warnaGaris;
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash(putus ? [5, 4] : []);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+  var grad = ctx.createLinearGradient(0, padA, 0, tinggiCss - padB);
+  grad.addColorStop(0, naikPeriode ? "rgba(74,222,128,.30)" : "rgba(248,113,113,.30)");
+  grad.addColorStop(1, "rgba(0,0,0,0)");
+  ctx.beginPath();
+  cls.forEach(function (vv, i) { if (i === 0) ctx.moveTo(X(i), Y(vv)); else ctx.lineTo(X(i), Y(vv)); });
+  ctx.lineTo(X(cls.length - 1), tinggiCss - padB);
+  ctx.lineTo(X(0), tinggiCss - padB);
+  ctx.closePath();
+  ctx.fillStyle = grad;
+  ctx.fill();
+  garis(cls, warna, false);
+  if (ov) {
+    var akt2 = {};
+    for (var b = 0; b < indikator.length; b++) if (indikator[b].aktif) akt2[indikator[b].id] = true;
+    if (akt2.bb) { garis(ov.bbUp, "#C084FC", true); garis(ov.bbLo, "#C084FC", true); }
+    if (akt2.ma5) garis(ov.ma5, "#FDE047", false);
+    if (akt2.ma20) garis(ov.ma20, "#22D3EE", false);
+  }
+  ctx.beginPath();
+  ctx.arc(X(cls.length - 1), Y(cls[cls.length - 1]), 3.5, 0, Math.PI * 2);
+  ctx.fillStyle = warna;
+  ctx.fill();
+  ctx.font = "12px sans-serif";
+  ctx.fillStyle = "#B9D8BB";
+  ctx.fillText("Tertinggi: " + fmtUang(mataUang, max), padK + 2, 14);
+  ctx.fillText("Terendah: " + fmtUang(mataUang, min), padK + 2, tinggiCss - 10);
+}
+
+/* ---------- ambil data ---------- */
+function parseYahooSeries(jsonText) {
+  var root;
+  try { root = JSON.parse(jsonText); } catch (e) { return null; }
+  if (!root || !root.chart || !root.chart.result || !root.chart.result.length) return null;
+  var r = root.chart.result[0];
+  var ts = r.timestamp || [];
+  var quote = (r.indicators && r.indicators.quote && r.indicators.quote[0]) || {};
+  var closes = quote.close || [], highs = quote.high || [], lows = quote.low || [];
+  var times = [], cls = [], his = [], los = [];
+  for (var i = 0; i < ts.length; i++) {
+    var c = closes[i];
+    if (typeof c === "number" && isFinite(c)) {
+      times.push(ts[i]); cls.push(c);
+      his.push((typeof highs[i] === "number" && isFinite(highs[i])) ? highs[i] : c);
+      los.push((typeof lows[i] === "number" && isFinite(lows[i])) ? lows[i] : c);
+    }
+  }
+  if (!cls.length) return null;
+  return { times: times, closes: cls, highs: his, lows: los };
+}
+function muatSimbol(sym) {
+  simbol = normalSimbol(sym);
+  if (!simbol) return;
+  document.getElementById("inputSimbol").value = simbol;
+  document.getElementById("judulSimbol").textContent = simbol;
+  document.getElementById("hargaSimbol").textContent = "Memuat…";
+  document.getElementById("status").textContent = "";
+  resetPanel();
+  localStorage.setItem("teknikku_simbol", simbol);
+  /* 1) kuotasi dulu untuk menemukan kode Yahoo (polos/.L/.JK) + harga kini */
+  if (window.AndroidBridge && AndroidBridge.fetchQuotes) {
+    try { AndroidBridge.fetchQuotes(simbol); } catch (e) { /* lanjut: ysym = simbol */ ysym = simbol; muatGrafik(); return; }
+  } else {
+    ysym = simbol; muatGrafik(); return;
+  }
+  /* Bila kuotasi gagal (ok:false), __teknikResult menampilkan galatnya
+     sendiri; bila kuotasi berhasil, __teknikResult memanggil muatGrafik.
+     Watchdog 25 detik di muatGrafik menangani grafik yang tidak pulang. */
+}
+window.__teknikResult = function (payload) {
+  var arr;
+  try { arr = JSON.parse(payload); } catch (e) { return; }
+  for (var i = 0; i < arr.length; i++) {
+    var q = arr[i];
+    if (q.symbol !== simbol) continue;
+    if (q.ok) {
+      ysym = q.ysym || simbol;
+      mataUang = q.currency || "USD";
+      hargaKini = q.price;
+      var chg = (q.prevClose && q.price) ? ((q.price / q.prevClose) - 1) * 100 : 0;
+      var kelas = chg > 0.0001 ? "naik" : (chg < -0.0001 ? "turun" : "datar");
+      document.getElementById("hargaSimbol").innerHTML = fmtUang(mataUang, q.price) +
+        ' <span class="' + kelas + '">(' + fmtDes(chg, 2) + "% hari ini)</span>";
+      muatGrafik();
+    } else {
+      document.getElementById("hargaSimbol").textContent = "Simbol tidak ditemukan";
+      document.getElementById("status").textContent = "Simbol " + simbol + " tidak ditemukan di Yahoo Finance. Periksa ejaan ticker lalu coba lagi.";
+      statusGrafik = "gagal"; seri = null; gambarGrafik(); resetPanel();
+    }
+  }
+};
+function muatGrafik() {
+  idGrafikAktif++;
+  var id = idGrafikAktif;
+  statusGrafik = "muat";
+  seri = null;
+  gambarGrafik();
+  document.getElementById("infoGrafik").textContent = "Memuat grafik " + rentang + "…";
+  clearTimeout(jagaGrafik);
+  jagaGrafik = setTimeout(function () {
+    if (id === idGrafikAktif && statusGrafik === "muat") {
+      statusGrafik = "gagal";
+      gambarGrafik();
+      document.getElementById("infoGrafik").textContent = "Grafik tidak tersedia — periksa koneksi lalu coba lagi.";
+    }
+  }, 25000);
+  if (window.AndroidBridge && AndroidBridge.fetchChart) {
+    try { AndroidBridge.fetchChart(ysym, RENTANG[rentang], "1d", id); return; }
+    catch (e) { /* lanjut ke jalur cadangan */ }
+  }
+  fetch("https://query1.finance.yahoo.com/v8/finance/chart/" + encodeURIComponent(ysym) +
+        "?interval=1d&range=" + RENTANG[rentang])
+    .then(function (r) { return r.text(); })
+    .then(function (txt) { window.__teknikChart(id, txt); })
+    .catch(function () { window.__teknikChart(id, ""); });
+}
+window.__teknikChart = function (id, payload) {
+  if (id !== idGrafikAktif) return;
+  clearTimeout(jagaGrafik);
+  var s = payload ? parseYahooSeries(payload) : null;
+  if (s && s.closes.length >= 2) {
+    seri = s;
+    statusGrafik = "ok";
+    var akhir = s.closes[s.closes.length - 1];
+    document.getElementById("infoGrafik").textContent =
+      "Titik: " + s.closes.length + " • Terakhir: " + fmtUang(mataUang, akhir);
+    hitungDanGambar();
+  } else {
+    seri = null;
+    statusGrafik = "gagal";
+    gambarGrafik();
+    document.getElementById("infoGrafik").textContent = "Grafik tidak tersedia untuk rentang ini.";
+  }
+};
+
+/* ---------- wiring ---------- */
+function pilihSimbol(s) { muatSimbol(s); }
+document.getElementById("btnCari").onclick = function () { muatSimbol(document.getElementById("inputSimbol").value); };
+document.getElementById("inputSimbol").onkeydown = function (e) {
+  if (e.key === "Enter") muatSimbol(document.getElementById("inputSimbol").value);
+};
+document.getElementById("btnSegar").onclick = function () { muatSimbol(simbol); };
+document.getElementById("btnSimpan").onclick = function () {
+  if (!simbol) return;
+  if (daftar.indexOf(simbol) < 0) { daftar.push(simbol); simpanDaftar(); renderChip(); }
+};
+document.getElementById("btnResetDaftar").onclick = function () {
+  daftar = DAFTAR_BAWAAN.slice(); simpanDaftar(); renderChip();
+};
+var rb = document.querySelectorAll("#rentangBtns button");
+for (var i = 0; i < rb.length; i++) rb[i].onclick = function () {
+  rentang = this.getAttribute("data-r");
+  localStorage.setItem("teknikku_rentang", rentang);
+  renderRentang();
+  muatGrafik();
+};
+window.onresize = function () { gambarGrafik(seri ? deretIndikator() : null); };
+
+renderChip();
+renderIndikator();
+renderRentang();
+document.getElementById("inputSimbol").value = simbol;
+muatSimbol(simbol);
+</script>
+</body>
+</html>
