@@ -1,5 +1,7 @@
 # TeknikKu
 
+Versi bahasa Inggris: [README_EN.md](README_EN.md)
+
 Aplikasi Android penampil indikator teknikal untuk memantau ETF dan saham.
 Dibangun 1 November 2026 sebagai proyek baru (WebView + data Yahoo Finance).
 
